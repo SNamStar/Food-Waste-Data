@@ -1,0 +1,97 @@
+---
+title: "Food Waste"
+author: "Seong Nam and Alec Radliff"
+date: "3/17/2021"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(tidyverse)
+library(plotly)
+library(shiny)
+library(dplyr)
+library(lubridate)
+```
+
+## Purpose for this dashboard {.tabset}
+The the first purpose of this project is to show how much food waste increased from 1960 to 2018, collected by the US Environmental Protection Agency (EPA). This project will show a gradual increase in this timeframe making it easier to understand for everyone without needing to explain the numbers in details. For 2018 alone, there were 63,132,123 tons of food waste managed. (Food: Material-Specific Data 2020) We want to break down sources of where these food waste end up. We also want to show how much of them is composted vs how much of them is landfilled, and why this is happening.
+
+The second purpose of this project is to compare food waste amount from other countries. The data was collected by OECD from different countries, each of them covering different time periods, type of food waste collected, and the unit of measurement.
+
+### Food Waste in US between 1960-2018
+Ever since the 1960s, US Environmental Protection Agency (EPA) has ben collecting data on how much waste was generated every decade or so. The types of wastes varies, such as plastic, metal, wood, electronic, food, and etc. For the food waste, EPA collected how much food waste was generated and where did all of them evetually end up. EPA collected this dataset by various methods for each sectors; Residential wasted food generation is estimated by establishing a nationwide per capita estimate that is based on curbside sampling studies from across the United States and then applied to the U.S. population. The commercial and institutional wasted food generation estimates are based on dozens of industry-specific studies from across the nation. This was done by capture flows of excess food and food waste throughout the food system, and to provide more granular annual estimates of generation and management of excess food and food waste to the public (Food: Material-Specific Data 2020). 
+
+### Food waste from 1993-2013
+Since the 1993, various countries around the world kept track of how much food waste was produced.And each countries had different unit of measurement for different type of food waste-related data. Also, not all countries had the record for the same year. This means that each countries had different trends, and didn't share too much similarity.
+
+### Objective
+
+Using the derived data from EPA's dataset, this data dashboard aims to inform the readers on the increase of food waste over the period between 1960 to 2018. This will be done by presenting the food waste generated for each decade and how much of them has gone to landfill or combusted. After reading this dataset, readers should be more aware of the increase in food waste and what they can do to prevent further increase.
+
+For the global food waste, we will derive from OECD's dataset, where we pick countries whose measurements were done in tons, as tons had the most entries in the dataset. From there, more countries will be filtered out if they only had one entry in tons, because we want to show how the amounts changed over the years.
+```{r table, echo=FALSE}
+
+FoodData <- read_excel("Food Waste types.xlsx",) %>%
+  pivot_longer(cols = !Materials, names_to = "Year", values_to = "Tons")
+```
+## Food Waste Data {.tabset}
+### Food Waste in US
+```{r plot, echo=FALSE}
+g <- ggplot(FoodData, mapping = aes(x = as.numeric(Year), y = as.numeric(Tons), color = Materials, label = Year, label2 = Tons)) + 
+  geom_point() +
+  geom_line() +
+  scale_y_continuous(name = "Tons", label = scales::label_number_si()) +
+  xlab("Year") +
+  theme_get()
+
+ggplotly(g, tooltip = c("label", "label2"))
+```
+
+
+#### Analysis
+The data was originally recorded in 10-year increments until the year 2010, after that the food waste data was recorded every year until 2018.The data is made up of the 3 types of food waste sources in the united states, agricultural, commercial, and residential.The graph shows a general increase in the total amount of food waste every recorded year, but the largest increases happened after the year 1980 this is because food waste combusted started to be used as a disposal method besides landfills. The food waste landfilled has a steep slope compared to the slope of food waste combusted as well. It seems like using a landfill for food waste was and still is the most common and easiest way to dispose of food waste. Near the later dates while total food waste did increase more food waste was combusted leading to less waste being landfilled. The data for 2018 is off as what the total value for food waste should be a combination of landfill and combustion but the total food waste goes higher than both combined. This must come from some error in the data set we are using and should be discarded as it’s statistically out of bounds since it would require the united states to double its food production to have that much of an increase in food waste.
+
+### Food Waste Global
+```{r interactive, echo=FALSE, message=FALSE}
+GlobalFullData <- read.csv2("FOOD_WASTE-2019-1-EN-20200404T101521.csv", sep = ",")
+FoodDataGlobal <- read.csv2("FOOD_WASTE-2019-1-EN-20200404T101521.csv", sep = ",") %>%
+  filter(Unit == "tonnes") %>%
+  filter(Country != "United States") %>%
+  filter(Country != "Slovenia") %>%
+  filter(Country != "China (People's Republic of)") %>%
+  filter(Country != "Iceland") %>%
+  filter(Country != "Switzerland") %>%
+  select(Country, Category, Activity, Variable, Time, Value) %>%
+  mutate(Country = as.factor(Country), Value = as.numeric(Value)) %>%
+  group_by(Country, Time) %>%
+  summarise(total = sum(Value)) %>%
+  ungroup() %>%
+  mutate(Time = make_date(year = Time))
+
+inputPanel(
+  checkboxGroupInput("Country", label = "Country:",
+              choices = unique(FoodDataGlobal$Country), selected = c("Germany"))
+  
+  #sliderInput("Year", label = "Year:",
+              #min = 1993, max = 2013, value = c(1993,2013), step = 1)
+)
+
+renderPlotly({
+f <- FoodDataGlobal %>%
+  filter(Country%in% input$Country) %>%
+  ggplot(mapping = aes(x = Time, y = total, fill = Country, color = Country))+
+  geom_point() +
+  geom_line() +
+  scale_y_continuous(name = "Tons", label = scales::label_number_si()) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  xlab('Year')+
+  theme_get()
+ggplotly(f)
+})
+```
+
+#### Analysis
+The data visual can show up to 27 different countries and their total amount of food waste produced. The countries on the list are from all over the world including Europe, Asia, and central America. The range of each country’s data is different as each country’s records are shorter or longer than each other. The data is all in MILLIONS? Of tons of food waste. A general pattern of countries progressively producing more food waste till 2010 then having a large decrease occurs. For the countries that have data past 2010 it goes back into the general trend of food waste production they had before. The outlier for every country is the year 2009 during the economic recession that the world was experiencing it’s obvious to see why food would end up wasted due to less people eating out, less demand for food, and people not being able to afford food as well. 
